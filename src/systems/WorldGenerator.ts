@@ -1,4 +1,5 @@
 import { TileKey } from './Constants';
+import { InteractionType } from '../entities/Interactable';
 
 export interface Decoration {
   x: number;
@@ -6,11 +7,18 @@ export interface Decoration {
   type: TileKey;
 }
 
+export interface WorldInteractable {
+  x: number;
+  y: number;
+  type: InteractionType;
+}
+
 export interface World {
   width: number;
   height: number;
   tiles: TileKey[][];
   decorations: Decoration[];
+  interactables: WorldInteractable[];
 }
 
 /**
@@ -20,6 +28,10 @@ export interface World {
  *  - Wasser (See unten links)
  *  - Sandstreifen am Wasser
  *  - Wege kreuz und quer
+ *  - 3 interaktive Beispiele:
+ *    - Mondkraut (1x, im Gras neben dem Weg)
+ *    - Baumloch (1x, am Waldrand)
+ *    - Bodenstelle zum Untersuchen (1x, in der Nähe des NPC)
  */
 export function generateWorld(width: number, height: number): World {
   // 1) Tiles initialisieren (alles Gras)
@@ -83,5 +95,12 @@ export function generateWorld(width: number, height: number): World {
     }
   }
 
-  return { width, height, tiles, decorations };
+  // 8) Interaktionen platzieren (deterministisch für Demo)
+  const interactables: WorldInteractable[] = [
+    { x: 12, y: 11, type: 'herb' },     // neben Hauptweg
+    { x: 23, y: 13, type: 'treeHole' }, // am Waldrand (1 Tile vor Bäumen)
+    { x: 13, y: 7,  type: 'digSpot' },  // zwischen Dorf und NPC
+  ];
+
+  return { width, height, tiles, decorations, interactables };
 }
