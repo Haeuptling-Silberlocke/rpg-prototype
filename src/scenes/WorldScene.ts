@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { Player, generatePlayerTextures } from '../entities/Player';
 import { NPC } from '../entities/NPC';
 import { DialogUI } from '../ui/DialogUI';
+import { StatusPanel } from '../ui/StatusPanel';
 import { Interactable } from '../entities/Interactable';
 import { Herb } from '../entities/Herb';
 import { TreeHole } from '../entities/TreeHole';
@@ -9,6 +10,7 @@ import { DigSpot } from '../entities/DigSpot';
 import { TILE_SIZE, TILE_KEYS, INTERACT_DISTANCE } from '../systems/Constants';
 import { buildCollisionMap } from '../systems/CollisionMap';
 import { generateWorld, WorldInteractable } from '../systems/WorldGenerator';
+import { GameState } from '../systems/GameState';
 
 export class WorldScene extends Phaser.Scene {
   private player!: Player;
@@ -107,6 +109,11 @@ export class WorldScene extends Phaser.Scene {
     // ===== DIALOG UI =====
     this.dialogUI = new DialogUI(this);
 
+    // ===== STATUS PANEL (oben rechts) =====
+    // Bindet sich automatisch an GameState-Events
+    GameState.instance; // Singleton-Init
+    new StatusPanel(this);
+
     // ===== NPC INTERAKTION (overlap) =====
     this.physics.add.overlap(this.player, this.npc, () => {
       this.npc.setNearby(true);
@@ -127,19 +134,6 @@ export class WorldScene extends Phaser.Scene {
       backgroundColor: '#000000aa',
       padding: { x: 8, y: 4 },
     }).setScrollFactor(0);
-
-    // Counter HUD (rechts oben)
-    const counter = this.add.text(this.cameras.main.width - 10, 10, '🌿 0', {
-      fontSize: '16px',
-      color: '#c084fc',
-      backgroundColor: '#0a0a14cc',
-      padding: { x: 8, y: 4 },
-    })
-      .setOrigin(1, 0)
-      .setScrollFactor(0);
-    this.events.on('update', () => {
-      counter.setText(`🌿 ${this.collectedCount}`);
-    });
   }
 
   private spawnInteractable(def: WorldInteractable): void {
@@ -156,32 +150,33 @@ export class WorldScene extends Phaser.Scene {
           type: 'herb',
           hint: 'E = sammeln',
           successText: 'Du hast Mondkraut gesammelt.',
-          onInteract: (scene) => {
-            const count = (scene as WorldScene).getCollectedCount();
-            (scene as WorldScene).setCollectedCount(count + 1);
-          },
+          rewardText: 'Mondkraut erhalten.',
+          reward: { herbs: 1 },
         });
       case 'treeHole':
         return new TreeHole(this, px, py, {
           type: 'treeHole',
           hint: 'E = untersuchen',
           successText: 'In dem Baumloch liegt eine alte Münze.',
+          rewardText: 'Alte Münze gefunden.',
+          reward: { oldCoins: 1 },
         });
       case 'digSpot':
         return new DigSpot(this, px, py, {
           type: 'digSpot',
           hint: 'E = untersuchen',
           successText: 'Hier scheint etwas vergraben zu sein.',
-          requiredTool: 'shovel', // Platzhalter: zeigt nur Text
+          rewardText: '10 Gold ausgegraben.',
+          reward: { gold: 10 },
+          requiredTool: 'shovel', // Platzhalter: zeigt nur Text (Stufe-3-Tool-Check)
           requiredToolMissingText: 'Dir fehlt das richtige Werkzeug zum Graben.',
         });
     }
   }
 
   // ===== State für Debug-Counter (für späteres Inventar) =====
-  private collectedCount = 0;
-  getCollectedCount(): number { return this.collectedCount; }
-  setCollectedCount(n: number): void { this.collectedCount = n; }
+  // Hinweis: Wird ab Stufe 3 durch GameState ersetzt.
+  // Alte Counter-Variablen entfernt — Status-Panel liest direkt aus GameState.
 
   private updateProximity(): void {
     // NPC

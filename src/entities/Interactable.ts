@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { GameState } from '../systems/GameState';
 
 /**
  * Mögliche Typen einer Interaktion.
@@ -12,10 +13,23 @@ export type InteractionType = 'herb' | 'treeHole' | 'digSpot';
  * - requiredTool: Optional — wenn vorhanden, muss das Tool "im Inventar" sein
  *   (Aktuell wird nur ein Flag geprüft; richtiges Inventar kommt in Stufe 3+)
  */
+/**
+ * Belohnung, die nach erfolgreicher Interaktion ans GameState geht.
+ * Noch KEIN Inventar — nur numerische Zähler.
+ */
+export interface InteractionReward {
+  gold?: number;
+  herbs?: number;
+  oldCoins?: number;
+}
+
 export interface InteractionConfig {
   type: InteractionType;
   hint: string;                    // z.B. "E = sammeln"
   successText: string;             // z.B. "Du hast Mondkraut gesammelt."
+  reward?: InteractionReward;      // was wird ans GameState gegeben
+  /** Optional: kurzer Reward-Text (z.B. "Mondkraut erhalten."), wird in Message-UI gezeigt */
+  rewardText?: string;
   requiredTool?: string;           // z.B. 'shovel' (für später)
   requiredToolMissingText?: string; // z.B. "Du brauchst eine Schaufel."
   /** Wird nach erfolgreicher Interaktion aufgerufen (z.B. für Debug-Counter) */
@@ -108,7 +122,19 @@ export abstract class Interactable extends Phaser.Physics.Arcade.Sprite {
     this.onSuccess();
     this.consumed = true;
     this.config.onInteract?.(this.scene);
-    return { success: true, message: this.config.successText };
+
+    // Belohnung ans GameState geben
+    if (this.config.reward) {
+      const r = this.config.reward;
+      if (r.gold) GameState.instance.addGold(r.gold);
+      if (r.herbs) GameState.instance.addHerbs(r.herbs);
+      if (r.oldCoins) GameState.instance.addOldCoins(r.oldCoins);
+    }
+
+    return {
+      success: true,
+      message: this.config.rewardText ?? this.config.successText,
+    };
   }
 
   /** Subklassen-Override: z.B. Sprite ausblenden, Sound, etc. */
