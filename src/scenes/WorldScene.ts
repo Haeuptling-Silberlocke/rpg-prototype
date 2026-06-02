@@ -10,6 +10,7 @@ import { DigSpot } from '../entities/DigSpot';
 import { TILE_SIZE, TILE_KEYS, INTERACT_DISTANCE } from '../systems/Constants';
 import { buildCollisionMap } from '../systems/CollisionMap';
 import { generateWorld, WorldInteractable } from '../systems/WorldGenerator';
+import { generateTreeTextures, spawnTree } from '../systems/TreeTextures';
 import { GameState } from '../systems/GameState';
 
 export class WorldScene extends Phaser.Scene {
@@ -33,8 +34,9 @@ export class WorldScene extends Phaser.Scene {
   }
 
   create(): void {
-    // ===== TEXTURES GENERIEREN (Pixel-Art Player) =====
+    // ===== TEXTURES GENERIEREN (Pixel-Art Player + Bäume) =====
     generatePlayerTextures(this);
+    generateTreeTextures(this);
 
     const mapWidth = 40;
     const mapHeight = 30;
@@ -57,7 +59,7 @@ export class WorldScene extends Phaser.Scene {
       }
     }
 
-    // ===== DECORATION LAYER (Bäume, Felsen) =====
+    // ===== DECORATION LAYER (Felsen) =====
     const decorationLayer = this.physics.add.staticGroup();
     for (const deco of world.decorations) {
       const tile = TILE_KEYS[deco.type];
@@ -74,6 +76,13 @@ export class WorldScene extends Phaser.Scene {
       decorationLayer.add(obj);
     }
 
+    // ===== BÄUME (Trunk + Crown, kollidierbarer Stamm) =====
+    // Wird im tile-Bereich gerendert + Kronen überlagern Spieler (räumliche Tiefe)
+    const treeGroup = this.physics.add.staticGroup();
+    for (const tree of world.trees) {
+      spawnTree(this, treeGroup, tree.variant, tree.x, tree.y);
+    }
+
     // ===== INTERACTABLES (Kraut, Baumloch, Bodenstelle) =====
     for (const def of world.interactables) {
       this.spawnInteractable(def);
@@ -86,6 +95,8 @@ export class WorldScene extends Phaser.Scene {
     // ===== PLAYER =====
     this.player = new Player(this, 8 * TILE_SIZE, 8 * TILE_SIZE);
     this.add.existing(this.player);
+    // Initiale Y-Sort: depth wird im Update-Loop dynamisch angepasst
+    this.updatePlayerDepth();
 
     // ===== KAMERA =====
     this.cameras.main.setBackgroundColor('#0a0a14');
@@ -105,6 +116,7 @@ export class WorldScene extends Phaser.Scene {
     // ===== KOLLISIONEN =====
     buildCollisionMap(world);
     this.physics.add.collider(this.player, decorationLayer);
+    this.physics.add.collider(this.player, treeGroup);
 
     // ===== DIALOG UI =====
     this.dialogUI = new DialogUI(this);
@@ -125,6 +137,7 @@ export class WorldScene extends Phaser.Scene {
       this.updateMessageTimer(delta);
       this.handleMovement(time, delta);
       this.handleInteraction();
+      this.updatePlayerDepth();
     });
 
     // HUD
@@ -177,6 +190,20 @@ export class WorldScene extends Phaser.Scene {
   // ===== State für Debug-Counter (für späteres Inventar) =====
   // Hinweis: Wird ab Stufe 3 durch GameState ersetzt.
   // Alte Counter-Variablen entfernt — Status-Panel liest direkt aus GameState.
+
+  /**
+   * Y-Sort: Spieler-depth wird basierend auf Tile-Y berechnet.
+   * Bäume haben Trunk.depth = y*100+1, Crown.depth = y*100+3.
+   * → Spieler mit depth = y*100+2 sitzt visuell ZWISCHEN Stamm und Krone:
+   *   - vor dem Stamm (Stamm verdeckt) wenn Spieler UNTER Baum
+   *   - hinter der Krone (Krone verdeckt Spieler) wenn Spieler UNTER Baumkrone
+   *
+   * Wird jeden Frame aufgerufen, damit Y-Sort beim Bewegen mitwandert.
+   */
+  private updatePlayerDepth(): void {
+    const tileY = Math.floor(this.player.y / TILE_SIZE);
+    this.player.setDepth(tileY * 100 + 2);
+  }
 
   private updateProximity(): void {
     // NPC

@@ -1,10 +1,18 @@
 import { TileKey } from './Constants';
 import { InteractionType } from '../entities/Interactable';
+import { TreeVariant } from './TreeTextures';
 
 export interface Decoration {
   x: number;
   y: number;
   type: TileKey;
+}
+
+/** Baum-Position mit Variante für mehr visuelle Abwechslung. */
+export interface TreeSpawn {
+  x: number;
+  y: number;
+  variant: TreeVariant;
 }
 
 export interface WorldInteractable {
@@ -18,6 +26,8 @@ export interface World {
   height: number;
   tiles: TileKey[][];
   decorations: Decoration[];
+  /** Bäume mit expliziter Variante (Eiche/Tanne/dunkler Baum) */
+  trees: TreeSpawn[];
   interactables: WorldInteractable[];
 }
 
@@ -58,10 +68,20 @@ export function generateWorld(width: number, height: number): World {
     }
   }
 
-  // 3) Wald rechts (dichte Baum-Tiles)
+  // 3) Wald rechts (dichte Baum-Tiles) — als TreeSpawn-Liste mit Variante
+  // Variante wird per Position-Hash deterministisch gewählt → kein Random-Spawn,
+  // gleiche Bäume bei jedem Reload, aber Verteilung wirkt natürlich.
+  const treeVariants: TreeVariant[] = ['oak', 'pine', 'dark'];
+  const trees: TreeSpawn[] = [];
   for (let y = 2; y < 18; y++) {
     for (let x = 25; x < 38; x++) {
-      if (Math.random() < 0.55) tiles[y][x] = 'tree';
+      if (Math.random() < 0.55) {
+        // Pseudo-random aber deterministisch
+        const idx = (x * 7 + y * 13) % treeVariants.length;
+        const variant = treeVariants[idx];
+        trees.push({ x, y, variant });
+        tiles[y][x] = 'tree';
+      }
     }
   }
 
@@ -86,11 +106,13 @@ export function generateWorld(width: number, height: number): World {
   }
 
   // 7) Decorations extra sammeln (für eigene Physik-Bodies)
+  // Bäume werden NICHT hier gesammelt — die nutzen ihre eigene Trunk-Logik
+  // mit kollidierbaren unteren 12px (siehe WorldScene.spawnTrees).
   const decorations: Decoration[] = [];
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      if (tiles[y][x] === 'tree' || tiles[y][x] === 'rock') {
-        decorations.push({ x, y, type: tiles[y][x] });
+      if (tiles[y][x] === 'rock') {
+        decorations.push({ x, y, type: 'rock' });
       }
     }
   }
@@ -102,5 +124,5 @@ export function generateWorld(width: number, height: number): World {
     { x: 13, y: 7,  type: 'digSpot' },  // zwischen Dorf und NPC
   ];
 
-  return { width, height, tiles, decorations, interactables };
+  return { width, height, tiles, decorations, trees, interactables };
 }
