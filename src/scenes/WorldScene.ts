@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { Player } from '../entities/Player';
+import { Player, generatePlayerTextures } from '../entities/Player';
 import { NPC } from '../entities/NPC';
 import { DialogUI } from '../ui/DialogUI';
 import { TILE_SIZE, TILE_KEYS } from '../systems/Constants';
@@ -24,6 +24,9 @@ export class WorldScene extends Phaser.Scene {
   }
 
   create(): void {
+    // ===== TEXTURES GENERIEREN (Pixel-Art Player) =====
+    generatePlayerTextures(this);
+
     const mapWidth = 40;
     const mapHeight = 30;
     const world = generateWorld(mapWidth, mapHeight);
@@ -101,14 +104,14 @@ export class WorldScene extends Phaser.Scene {
       this.npc.setNearby(true);
     }, undefined, this);
 
-    this.events.on('update', () => {
+    this.events.on('update', (time: number, delta: number) => {
       if (Phaser.Math.Distance.Between(
         this.player.x, this.player.y,
         this.npc.x, this.npc.y
       ) > TILE_SIZE * 1.5) {
         this.npc.setNearby(false);
       }
-      this.handleMovement();
+      this.handleMovement(time, delta);
       this.handleInteraction();
     });
 
@@ -121,8 +124,11 @@ export class WorldScene extends Phaser.Scene {
     }).setScrollFactor(0);
   }
 
-  private handleMovement(): void {
-    if (this.dialogUI.isOpen()) return;
+  private handleMovement(_time: number, delta: number): void {
+    if (this.dialogUI.isOpen()) {
+      this.player.setVelocity(0, 0);
+      return;
+    }
     const speed = 150;
     let vx = 0;
     let vy = 0;
@@ -130,7 +136,8 @@ export class WorldScene extends Phaser.Scene {
     if (this.wasdKeys.D.isDown || this.cursors.right?.isDown) vx += speed;
     if (this.wasdKeys.W.isDown || this.cursors.up?.isDown) vy -= speed;
     if (this.wasdKeys.S.isDown || this.cursors.down?.isDown) vy += speed;
-    this.player.setVelocity(vx, vy);
+    // setVelocityAndFace aktualisiert Richtung + Walk-Frame automatisch
+    this.player.setVelocityAndFace(vx, vy, delta);
   }
 
   private handleInteraction(): void {
